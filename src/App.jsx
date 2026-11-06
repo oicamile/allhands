@@ -367,7 +367,7 @@ const DEMO_JOKES = [
 ]
 const DEMO_STORY = { id: 'd1', name: 'Ana Souza', area: 'Engenharia de Dados', text: 'Comi grilo frito num mercado em Bangkok e gostei tanto que voltei no dia seguinte pra comer de novo.' }
 const DEMO_STEPS = [
-  { ms: 9000, stage: 'waiting', caption: 'Você abre o link no celular. Enquanto a votação não abre, rolam histórias de All Hands passados.' },
+  { ms: 9000, stage: 'waiting', caption: 'Você abre o link, no celular ou no computador. Enquanto a votação não abre, rolam histórias de All Hands passados.' },
   { ms: 3500, stage: 'voting', caption: 'A pessoa nova conta a história na call. A votação abre e a tela muda sozinha.' },
   { ms: 3500, stage: 'voting', vote: '4', caption: 'Um toque na nota, de 1 a 5. Dá pra trocar até fechar.' },
   { ms: 3500, stage: 'voting', vote: 'do', caption: 'Ou uma nota piada, só pra zoar.' },
@@ -411,12 +411,13 @@ function Demo() {
         ) : (<>
           <span className="tag">Simulação</span>
           <h1 style={{ fontSize: '2rem' }}>Tela do <b>votante</b></h1>
+          <p className="muted">A tela se adapta ao aparelho: celular, tablet ou computador.</p>
           <div className="row" style={{ marginBottom: '1rem' }}>
             {Object.entries(STAGES).map(([k, v]) => <button key={k} className={'btn sm' + (stage === k ? ' pri' : '')} onClick={() => setStage(k)}>{v}</button>)}
             <button className="btn sm" onClick={() => { setVotes([]); setMine(false) }}>Limpar voto</button>
           </div>
         </>)}
-        <div className="phone">
+        <div className="screen">
           {stage === 'result'
             ? <div className="app dark"><Bar right={<span className="pill">equipe</span>} /><div className="wrap"><Result x={resultX} s={story} /></div></div>
             : <VoterView code="DEMO" x={x} s={story} me={auto ? 'demo' : 'demo'} mine={mine} setMine={setMine} cast={cast} />}

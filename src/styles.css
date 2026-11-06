@@ -188,3 +188,7 @@ input[type="checkbox"] { min-height: 0; width: 22px; height: 22px; }
 .demo-dots i { width: 8px; height: 8px; border-radius: 99px; background: var(--line); transition: .3s; }
 .demo-dots i.on { width: 26px; background: var(--primary); }
 .phone .app { min-height: 720px; }
+
+/* a demo usa a tela real, responsiva: sem moldura de celular */
+.screen { width: 100%; max-width: 1000px; margin: 0 auto; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: #000; }
+.screen .app { min-height: 520px; }
