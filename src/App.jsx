@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import * as S from './store.js'
+import { HISTORIAS } from './historias.js'
 
 const LOGO = 'https://cdn.prod.website-files.com/6597493048b37364a6af5de6/65eb9366bb1d92351b49f349_logosite.svg'
 const fmt = (n) => (n == null ? '–' : n.toFixed(2).replace('.', ','))
@@ -201,7 +202,7 @@ function Live({ code, st }) {
         <div className="card row">
           <span className="num" style={{ fontSize: '2rem' }}>{t.total}</span><span className="muted">votos entraram · {s.status}</span>
         </div>
-        <div className="row">
+        <div className="row actions">
           <button className="btn pri" disabled={s.status !== 'waiting' && s.status !== 'closed'} onClick={() => S.setStoryStatus(code, 'voting')}>Abrir votação</button>
           <button className="btn" disabled={s.status !== 'voting'} onClick={() => S.setStoryStatus(code, 'closed')}>Fechar votação</button>
           <button className="btn pri" disabled={s.status !== 'closed'} onClick={() => S.setStoryStatus(code, 'revealed')}>Revelar</button>
@@ -296,15 +297,55 @@ function Voter({ code, st }) {
   return <VoterView code={code} x={x} s={s} me={me} mine={mine} setMine={setMine} loading={S.isLoading(code)} cast={S.castVote} />
 }
 
+const QTD_HISTORIAS = 3 // quantos quadradinhos aparecem por vez
+const TROCA_MS = 10000 // a cada quantos ms as histórias mudam
+function sorteia(lista, n) {
+  const a = [...lista]
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }
+  return a.slice(0, n)
+}
+
+function Hero() {
+  // ordem sorteada por visita; a cada TROCA_MS avança um trio, sem repetir até passar por todas
+  const [ordem] = useState(() => sorteia(HISTORIAS, HISTORIAS.length))
+  const [pos, setPos] = useState(0)
+  useEffect(() => {
+    if (ordem.length <= QTD_HISTORIAS) return
+    const t = setInterval(() => setPos((p) => (p + QTD_HISTORIAS) % ordem.length), TROCA_MS)
+    return () => clearInterval(t)
+  }, [ordem.length])
+  const sorteadas = Array.from({ length: Math.min(QTD_HISTORIAS, ordem.length) }, (_, k) => ordem[(pos + k) % ordem.length])
+  return (
+    <section className="hero">
+      <span className="tag">All Hands</span>
+      <h1>Histórias do <b>All Hands</b></h1>
+      <p className="lead">No All Hands, os novos integrantes da Coders contam suas histórias mais estranhas e a gente vota.</p>
+      <div className="wait"><span className="dot" />Aguardando a votação abrir. A tela muda sozinha.</div>
+      {sorteadas.length > 0 && <>
+        <div className="hlabel">Já passaram por aqui</div>
+        <div className="hcards">
+          {sorteadas.map((h, i) => (
+            <article key={pos + '-' + i} className={'hcard ' + h.cor} style={{ '--tilt': (i % 2 ? 2 : -2) + 'deg', '--d': i * 0.4 + 's' }}>
+              <div className="hemoji">{h.emoji}</div>
+              <p>{h.texto}</p>
+              <small>{h.mes}</small>
+            </article>
+          ))}
+        </div>
+      </>}
+    </section>
+  )
+}
+
 function VoterView({ code, x, s, me, mine, setMine, loading, cast }) {
   return (
     <div className="app dark">
       <Bar right={<span className="pill">{code}</span>} />
-      <div className="wrap" style={{ maxWidth: 560 }}>
+      <div className="wrap voter">
         {!x && loading ? <div className="center"><h1 className="pulse">Entrando…</h1></div>
         : !x ? <div className="center"><h1>Sessão não encontrada</h1><p className="muted">Confere o link ou fala com o admin.</p></div>
         : x.status === 'ended' && (!s || s.status !== 'revealed') ? <div className="center"><h1>Acabou. <b>Valeu!</b></h1></div>
-        : !s || s.status === 'waiting' ? <div className="center"><span className="tag">Sala de espera</span><h1 className="pulse">Já já <b>abre</b></h1><p className="muted">Quando o admin abrir a votação, a tela muda sozinha.</p></div>
+        : !s || s.status === 'waiting' ? <Hero />
         : s.status === 'closed' || s.status === 'revealed' ? (() => {
             const voted = x.votes.some((t) => t.storyId === s.id && t.voter === me)
             return <div className="center"><span className="tag">Votação fechada</span>
