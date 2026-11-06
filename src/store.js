@@ -7,7 +7,7 @@ const M = R.enabled ? R : L
 export const {
   mode, useStore, voterId, login, logout, roleOf,
   createSession, patchSession, addStory, patchStory, removeStory, moveStory,
-  patchJoke, addJoke, deleteSession, setStoryStatus, nextStory, endSession, castVote,
+  patchJoke, addJoke, deleteSession, openVoting, closeVoting, castVote,
   watchAdmin, watchVoter, isLoading, addMember, setRole, removeMember,
 } = M
 

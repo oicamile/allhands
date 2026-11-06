@@ -13,8 +13,8 @@ Sem variáveis de ambiente roda em **modo local** (localStorage, só entre abas 
 - `#/admin` login, sessões, montagem, controle ao vivo, ranking, equipe, CSV
 - `#/v/CODIGO` votante, sem login nem nome
 
-## Votação
-👍/👎 de um toque, mais notas piada opcionais. Resultado = % de aprovação (👍 sobre 👍+👎). Quem conta a história pesa 0,5 (ajustável por sessão); notas piada ficam fora da %. Votos escondidos até Revelar.
+## Votação (sessão inteira)
+O admin só abre e fecha a votação da sessão. O votante vê todas as pessoas de uma vez e dá nota de 1 a 5 (ou uma nota piada) em cada uma, podendo trocar até fechar. A apuração só aparece para o admin, depois de fechar. Quem conta a história pesa 0,5 na média (ajustável por sessão); notas piada ficam fora da média. Votos escondidos dos votantes.
 
 ## Ligar o banco compartilhado (Supabase)
 1. Crie um projeto em supabase.com.

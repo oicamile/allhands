@@ -209,3 +209,14 @@ input[type="checkbox"] { min-height: 0; width: 22px; height: 22px; }
 .p2 .pbloco { height: 140px; }
 .p3 .pbloco { height: 105px; }
 @media (min-width: 700px) { .pbloco b { font-size: 2.6rem; } .p1 .pbloco { height: 240px; } .p2 .pbloco { height: 180px; } .p3 .pbloco { height: 135px; } .pmedal { font-size: 3rem; } .pname { font-size: 1.15rem; } }
+
+/* votação de todas as pessoas numa tela só */
+.scard { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 1.25rem; margin: 1rem 0; scroll-margin-top: 4.5rem; }
+.scard.done { border-color: rgba(68,214,44,.55); }
+.sname { font-size: 1.7rem; font-weight: 500; margin: 0 0 .15rem; }
+.vprogress { position: sticky; top: 0; z-index: 6; margin: .75rem -0.25rem 0; padding: .6rem .25rem; background: linear-gradient(#000 70%, transparent); font-size: .9rem; color: var(--mute); }
+.vprogress .track { height: 8px; margin-top: .35rem; }
+.vlist { margin-top: .75rem; display: grid; gap: .5rem; }
+.vrow { display: flex; align-items: center; gap: .75rem; padding: .6rem .8rem; border: 1px solid var(--line); border-radius: var(--r); background: rgba(255,255,255,.03); }
+.vrow .num { font-size: 1.4rem; }
+@media (min-width: 700px) { .sname { font-size: 2.2rem; } .scard { padding: 1.75rem; } }

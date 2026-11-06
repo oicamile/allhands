@@ -114,9 +114,9 @@ function Home({ st }) {
       {list.map((x) => (
         <div key={x.code} className="card row">
           <span className="code g" style={{ fontSize: '1.4rem' }}>{x.code}</span>
-          <div className="grow"><b>{x.date}</b> <span className="pill">{x.status}</span><div className="muted">{x.storyCount ?? x.stories.length} pessoas · {x.voteCount ?? x.votes.length} votos</div></div>
+          <div className="grow"><b>{x.date}</b> <span className="pill">{STATUS[x.status]}</span><div className="muted">{x.storyCount ?? x.stories.length} pessoas · {x.voteCount ?? x.votes.length} votos</div></div>
           <button className="btn sm" onClick={() => go('/admin/' + x.code)}>Montar</button>
-          <button className="btn sm" onClick={() => go(`/admin/${x.code}/live`)}>Ao vivo</button>
+          <button className="btn sm" onClick={() => go(`/admin/${x.code}/live`)}>Votação</button>
           <button className="btn sm danger" onClick={() => confirm('Apagar sessão?') && S.deleteSession(x.code)}>Apagar</button>
         </div>
       ))}
@@ -177,6 +177,8 @@ function Setup({ code, st }) {
   )
 }
 
+const STATUS = { draft: 'rascunho', live: 'votação aberta', ended: 'votação fechada' }
+
 function Expiry({ x }) {
   const left = S.expiresAt(x) - Date.now()
   const h = Math.max(0, Math.floor(left / 3600000))
@@ -190,31 +192,43 @@ function Live({ code, st }) {
   useEffect(() => S.watchAdmin(code), [code, st.me])
   if (!x && S.isLoading(code)) return <AdminShell st={st} back="/admin"><p className="muted pulse">Carregando…</p></AdminShell>
   if (!x) return <AdminShell st={st} back="/admin"><p>Sessão não encontrada.</p></AdminShell>
-  const s = x.stories[x.current]
-  const t = s ? S.tally(x, s.id) : null
+  const rows = x.stories.map((s) => ({ s, t: S.tally(x, s.id) }))
+  const totalVotos = rows.reduce((a, r) => a + r.t.total, 0)
+  const votantes = Math.max(0, ...rows.map((r) => r.t.total)) // aproximação: quem votou na pessoa mais votada
+  const ranked = S.ranking(x).ranked
   return (
     <AdminShell st={st} back={`/admin/${code}`}>
-      <div className="row"><span className="tag">Ao vivo</span><span className="pill on">{x.status}</span><span className="code g">{code}</span><Expiry x={x} /></div>
-      {!s ? <p>Cadastre pelo menos uma pessoa na montagem.</p> : (<>
-        <p className="muted">Pessoa {x.current + 1} de {x.stories.length}</p>
-        {s.status === 'revealed'
-          ? <Result x={x} s={s} />
-          : <div className="card"><div className="who"><b>{s.name || 'Sem nome'}</b></div><div className="q">{s.area}</div><p className="story">{s.text}</p></div>}
-        <div className="card row">
-          <span className="num" style={{ fontSize: '2rem' }}>{t.total}</span><span className="muted">votos entraram · {s.status}</span>
+      <div className="row"><span className="tag">Votação</span><span className={'pill' + (x.status === 'live' ? ' on' : '')}>{STATUS[x.status]}</span><span className="code g">{code}</span><Expiry x={x} /></div>
+      {x.stories.length === 0 && <p>Cadastre pelo menos uma pessoa na montagem.</p>}
+
+      <div className="card">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div><span className="num" style={{ fontSize: '2.4rem' }}>{totalVotos}</span> <span className="muted">votos no total · até {votantes} votantes</span></div>
         </div>
-        <div className="row actions">
-          <button className="btn pri" disabled={s.status !== 'waiting' && s.status !== 'closed'} onClick={() => S.setStoryStatus(code, 'voting')}>Abrir votação</button>
-          <button className="btn" disabled={s.status !== 'voting'} onClick={() => S.setStoryStatus(code, 'closed')}>Fechar votação</button>
-          <button className="btn pri" disabled={s.status !== 'closed'} onClick={() => S.setStoryStatus(code, 'revealed')}>Revelar</button>
-          <button className="btn" disabled={s.status !== 'revealed'} onClick={() => S.nextStory(code)}>{x.current < x.stories.length - 1 ? 'Próxima pessoa' : 'Encerrar sessão'}</button>
+        <div className="vlist">
+          {rows.map(({ s, t }) => (
+            <div key={s.id} className="vrow"><div className="grow"><b>{s.name || 'Sem nome'}</b><div className="muted">{s.area}</div></div><span className="num g">{t.total}</span></div>
+          ))}
         </div>
+        {x.status === 'live' && <p className="muted" style={{ marginBottom: 0 }}>Os resultados ficam escondidos até você fechar a votação.</p>}
+      </div>
+
+      {x.status === 'ended' && (<>
+        <h2>Resultado</h2>
+        {ranked.map((r) => <Result key={r.st.id} x={x} s={r.st} />)}
       </>)}
+
       <h2>Fim</h2>
       <div className="row">
-        <button className="btn" onClick={() => go(`/admin/${code}/ranking`)}>Ranking da sessão</button>
-        {role === 'admin' && <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + S.exportCsv(x)], { type: 'text/csv' })); a.download = `all-hands-${x.date}.csv`; a.click() }}>Exportar CSV</button>}
-        {x.status !== 'ended' && <button className="btn danger" onClick={() => confirm('Encerrar a sessão? Começa a contar as 12h.') && S.endSession(code)}>Encerrar sessão</button>}
+        <button className="btn" onClick={() => go(`/admin/${code}/ranking`)}>Ranking e pódio</button>
+        {role === 'admin' && <button className="btn" onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + S.exportCsv(x)], { type: 'text/csv' })); a.download = `all-hands-${x.date}.csv`; a.click() }}>Exportar CSV</button>}
+      </div>
+
+      <div className="row actions">
+        {x.status !== 'ended'
+          ? <button className="btn pri" disabled={x.status === 'live' || x.stories.length === 0} onClick={() => S.openVoting(code)}>Abrir votação</button>
+          : <button className="btn" onClick={() => S.openVoting(code)}>Reabrir votação</button>}
+        <button className="btn" disabled={x.status !== 'live'} onClick={() => confirm('Fechar a votação? Ninguém mais consegue votar e começam a contar as 12h.') && S.closeVoting(code)}>Fechar votação</button>
       </div>
     </AdminShell>
   )
@@ -313,11 +327,8 @@ function Team({ st }) {
 function Voter({ code, st }) {
   const x = st.sessions[code]
   const me = S.voterId()
-  const [mine, setMine] = useState(false) // "essa história é minha" (local, por história)
   useEffect(() => S.watchVoter(code), [code])
-  const s = x?.stories[x.current]
-  useEffect(() => setMine(false), [s?.id])
-  return <VoterView code={code} x={x} s={s} me={me} mine={mine} setMine={setMine} loading={S.isLoading(code)} cast={S.castVote} />
+  return <VoterView code={code} x={x} me={me} loading={S.isLoading(code)} cast={S.castVote} />
 }
 
 const QTD_HISTORIAS = 3 // quantos quadradinhos aparecem por vez
@@ -360,22 +371,29 @@ function Hero() {
   )
 }
 
-function VoterView({ code, x, s, me, mine, setMine, loading, cast }) {
+function VoterView({ code, x, me, loading, cast }) {
+  const mine = x ? x.votes.filter((v) => v.voter === me) : []
+  const total = x ? x.stories.length : 0
+  const done = x ? x.stories.filter((s) => mine.some((v) => v.storyId === s.id)).length : 0
   return (
     <div className="app dark">
       <Bar right={<span className="pill">{code}</span>} />
       <div className="wrap voter">
         {!x && loading ? <div className="center"><h1 className="pulse">Entrando…</h1></div>
         : !x ? <div className="center"><h1>Sessão não encontrada</h1><p className="muted">Confere o link ou fala com o admin.</p></div>
-        : x.status === 'ended' && (!s || s.status !== 'revealed') ? <div className="center"><h1>Acabou. <b>Valeu!</b></h1></div>
-        : !s || s.status === 'waiting' ? <Hero />
-        : s.status === 'closed' || s.status === 'revealed' ? (() => {
-            const voted = x.votes.some((t) => t.storyId === s.id && t.voter === me)
-            return <div className="center"><span className="tag">Votação fechada</span>
-              <h1>{voted ? <>Teu voto foi <b>registrado</b></> : <>Você <b>não votou</b> dessa vez</>}</h1>
-              <p className="muted">O voto é secreto. A apuração fica com a equipe. A próxima pessoa aparece sozinha.</p></div>
-          })()
-        : <VoteScreen x={x} s={s} me={me} mine={mine} setMine={setMine} code={code} cast={cast} />}
+        : x.status === 'draft' ? <Hero />
+        : x.status === 'ended' ? (
+          <div className="center"><span className="tag">Votação fechada</span>
+            <h1>{done > 0 ? <>Você votou em <b>{done} de {total}</b></> : <>Você <b>não votou</b> dessa vez</>}</h1>
+            <p className="muted">O voto é secreto. A apuração fica com a equipe.</p></div>
+        ) : (<>
+          <span className="tag">Votando</span>
+          <h1>Vote nas <b>histórias</b></h1>
+          <p className="muted">Escolhe a nota de cada pessoa. Dá pra mudar até fechar.</p>
+          <div className="vprogress"><span>{done} de {total} votadas</span><div className="track"><div className="fill" style={{ width: (total ? (done / total) * 100 : 0) + '%' }} /></div></div>
+          {x.stories.map((s) => <StoryCard key={s.id} s={s} x={x} me={me} code={code} cast={cast} />)}
+          {total === 0 && <p className="muted">Ainda não tem ninguém cadastrado.</p>}
+        </>)}
       </div>
     </div>
   )
@@ -388,40 +406,41 @@ const DEMO_JOKES = [
   { id: 'do', name: 'Nota dó', emoji: '🥺', meaning: '', active: true },
   { id: 'ressarcimento', name: 'Nota de ressarcimento', emoji: '💸', meaning: '', active: true },
 ]
-const DEMO_STORY = { id: 'd1', name: 'Ana Souza', area: 'Engenharia de Dados', text: 'Comi grilo frito num mercado em Bangkok e gostei tanto que voltei no dia seguinte pra comer de novo.' }
+const DEMO_STORIES = [
+  { id: 'd1', name: 'Ana Souza', area: 'Engenharia de Dados', text: 'Comi grilo frito num mercado em Bangkok e gostei tanto que voltei no dia seguinte pra comer de novo.' },
+  { id: 'd2', name: 'Bruno Lima', area: 'Comunidade', text: 'Já abri show de uma banda que ninguém lembra o nome.' },
+  { id: 'd3', name: 'Carla Dias', area: 'Marketing e Parcerias', text: 'Ganhei um concurso de fantasia de caixa de sucrilhos gigante. Saía leite.' },
+]
 const DEMO_STEPS = [
   { ms: 9000, stage: 'waiting', caption: 'Você abre o link, no celular ou no computador. Enquanto a votação não abre, rolam histórias de All Hands passados.' },
-  { ms: 3500, stage: 'voting', caption: 'A pessoa nova conta a história na call. A votação abre e a tela muda sozinha.' },
-  { ms: 3500, stage: 'voting', vote: '4', caption: 'Um toque na nota, de 1 a 5. Dá pra trocar até fechar.' },
-  { ms: 3500, stage: 'voting', vote: 'do', caption: 'Ou uma nota piada, só pra zoar.' },
-  { ms: 4500, stage: 'closed', vote: 'do', caption: 'Votação fechada. O voto é secreto: ninguém vê o que você escolheu.' },
-  { ms: 5500, stage: 'result', caption: 'A apuração fica só com a equipe, que mostra a média ponderada na tela compartilhada.' },
+  { ms: 4000, stage: 'voting', votes: {}, caption: 'A equipe abre a votação e as pessoas aparecem todas de uma vez. Você vota em cada uma, no seu ritmo.' },
+  { ms: 3500, stage: 'voting', votes: { d1: '4' }, caption: 'Um toque na nota, de 1 a 5. Dá pra trocar até fechar.' },
+  { ms: 4000, stage: 'voting', votes: { d1: '4', d2: 'do', d3: '5' }, caption: 'Ou uma nota piada, só pra zoar. O progresso mostra quantas faltam.' },
+  { ms: 4500, stage: 'closed', votes: { d1: '4', d2: 'do', d3: '5' }, caption: 'A equipe fecha a votação. O voto é secreto: ninguém vê o que você escolheu.' },
+  { ms: 5500, stage: 'result', votes: {}, caption: 'A apuração fica só com a equipe, que monta o pódio com a média ponderada.' },
 ]
-const DEMO_VOTES = [['1', '5'], ['2', '4'], ['3', '4'], ['4', '5'], ['5', '3'], ['6', 'do'], ['7', '4'], ['8', 'pesar']].map(([v, g]) => ({ storyId: 'd1', voter: v, grade: g, isAuthor: false }))
+const DEMO_RANKED = [{ st: { name: 'Carla Dias', area: 'Marketing e Parcerias' }, avg: 4.8 }, { st: { name: 'Ana Souza', area: 'Engenharia de Dados' }, avg: 4.6 }, { st: { name: 'Bruno Lima', area: 'Comunidade' }, avg: 3.6 }]
 
 function Demo() {
   const auto = location.hash.includes('auto')
-  const STAGES = { waiting: 'Sala de espera', voting: 'Votando', closed: 'Fechada', result: 'Resultado (equipe)', ended: 'Fim' }
+  const STAGES = { waiting: 'Sala de espera', voting: 'Votando', closed: 'Fechada', result: 'Resultado (equipe)' }
   const [stage, setStage] = useState(auto ? DEMO_STEPS[0].stage : 'voting')
   const [votes, setVotes] = useState([])
-  const [mine, setMine] = useState(false)
   const [step, setStep] = useState(0)
+  const toVotes = (o) => Object.entries(o || {}).map(([storyId, grade]) => ({ storyId, voter: 'demo', grade, isAuthor: false }))
   useEffect(() => {
     if (!auto) return
     let i = 0, t
     const run = () => {
       const st = DEMO_STEPS[i % DEMO_STEPS.length]
-      setStep(i % DEMO_STEPS.length); setStage(st.stage)
-      setVotes(st.vote ? [{ storyId: 'd1', voter: 'demo', grade: st.vote, isAuthor: false }] : [])
+      setStep(i % DEMO_STEPS.length); setStage(st.stage); setVotes(toVotes(st.votes))
       t = setTimeout(() => { i++; run() }, st.ms)
     }
     run()
     return () => clearTimeout(t)
   }, [auto])
-  const story = { ...DEMO_STORY, status: stage === 'closed' ? 'closed' : stage === 'waiting' ? 'waiting' : 'voting' }
-  const x = { code: 'DEMO', status: stage === 'ended' ? 'ended' : 'live', weight: 0.5, jokes: DEMO_JOKES, current: 0, stories: [story], votes }
-  const cast = (_c, id, voter, grade, isAuthor) => setVotes([{ storyId: id, voter, grade, isAuthor }])
-  const resultX = { ...x, votes: DEMO_VOTES }
+  const x = { code: 'DEMO', status: stage === 'closed' ? 'ended' : stage === 'waiting' ? 'draft' : 'live', weight: 0.5, jokes: DEMO_JOKES, current: 0, stories: DEMO_STORIES, votes }
+  const cast = (_c, id, voter, grade, isAuthor) => setVotes((vs) => [...vs.filter((v) => v.storyId !== id), { storyId: id, voter, grade, isAuthor }])
   return (
     <div className="app dark">
       <div className="wrap" style={{ maxWidth: 1000 }}>
@@ -437,36 +456,38 @@ function Demo() {
           <p className="muted">A tela se adapta ao aparelho: celular, tablet ou computador.</p>
           <div className="row" style={{ marginBottom: '1rem' }}>
             {Object.entries(STAGES).map(([k, v]) => <button key={k} className={'btn sm' + (stage === k ? ' pri' : '')} onClick={() => setStage(k)}>{v}</button>)}
-            <button className="btn sm" onClick={() => { setVotes([]); setMine(false) }}>Limpar voto</button>
+            <button className="btn sm" onClick={() => setVotes([])}>Limpar votos</button>
           </div>
         </>)}
         <div className="screen">
           {stage === 'result'
-            ? <div className="app dark"><Bar right={<span className="pill">equipe</span>} /><div className="wrap"><Result x={resultX} s={story} /></div></div>
-            : <VoterView code="DEMO" x={x} s={story} me={auto ? 'demo' : 'demo'} mine={mine} setMine={setMine} cast={cast} />}
+            ? <div className="app dark"><Bar right={<span className="pill">equipe</span>} /><div className="wrap"><Podio ranked={DEMO_RANKED} date="2026-11-06" canExport={false} /></div></div>
+            : <VoterView code="DEMO" x={x} me="demo" cast={cast} />}
         </div>
       </div>
     </div>
   )
 }
 
-function VoteScreen({ x, s, me, mine, setMine, code, cast = S.castVote }) {
+function StoryCard({ s, x, me, code, cast }) {
   const v = x.votes.find((t) => t.storyId === s.id && t.voter === me)
+  const [mine, setMine] = useState(!!v?.isAuthor)
+  useEffect(() => { if (v) setMine(!!v.isAuthor) }, [v?.isAuthor])
   const pick = (g) => cast(code, s.id, me, g, mine)
   const act = x.jokes.filter((j) => j.active)
   return (
-    <>
-      <span className="tag">Votando</span>
-      <h1 style={{ fontSize: '2.2rem' }}>{s.name}</h1>
+    <article className={'scard' + (v ? ' done' : '')}>
+      <h2 className="sname">{s.name}</h2>
       <div className="q">{s.area}</div>
       <p className="story">{s.text}</p>
-      <p className="muted">Escolhe tua nota. Dá pra mudar até fechar.</p>
       <div className="grades">
         {['1', '2', '3', '4', '5'].map((g) => <button key={g} className={'gbtn' + (v?.grade === g ? ' sel' : '')} onClick={() => pick(g)}>{g}</button>)}
       </div>
       <div className="jgrid">{act.map((j) => <button key={j.id} className={'jbtn' + (v?.grade === j.id ? ' sel' : '')} onClick={() => pick(j.id)}>{j.emoji} {j.name}</button>)}</div>
-      {v && <p className="ok">✓ Voto registrado. Pode trocar até fechar.</p>}
-      <label className="sw" style={{ marginTop: '1.5rem' }}><input type="checkbox" checked={mine} onChange={(e) => { setMine(e.target.checked); if (v) cast(code, s.id, me, v.grade, e.target.checked) }} /> Essa história é minha</label>
-    </>
+      <div className="row" style={{ justifyContent: 'space-between', marginTop: '1rem' }}>
+        <label className="sw"><input type="checkbox" checked={mine} onChange={(e) => { setMine(e.target.checked); if (v) cast(code, s.id, me, v.grade, e.target.checked) }} /> Essa história é minha</label>
+        {v && <span className="ok">✓ voto registrado</span>}
+      </div>
+    </article>
   )
 }

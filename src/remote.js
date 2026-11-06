@@ -137,9 +137,13 @@ async function loadVoter(code) {
   loading.delete(code)
   if (!data) { delete state.sessions[code]; emit(); return }
   const prev = state.sessions[code]
-  const st = data.story
-  const x = { code, status: data.status, weight: data.weight, jokes: data.jokes, current: 0, stories: st ? [{ ...st, text: st.text }] : [], votes: [], tallies: {} }
-  if (st && data.my_vote) x.votes.push({ storyId: st.id, voter: voterId(), grade: data.my_vote.grade, isAuthor: data.my_vote.is_author })
+  const me = voterId()
+  const x = {
+    code, status: data.status, weight: data.weight, jokes: data.jokes, current: 0,
+    stories: (data.stories || []).map((s) => ({ id: s.id, name: s.name, area: s.area, text: s.text })),
+    votes: Object.entries(data.my_votes || {}).map(([storyId, v]) => ({ storyId, voter: me, grade: v.grade, isAuthor: v.is_author })),
+    tallies: {},
+  }
   if (inflight > 0 && prev) x.votes = prev.votes // voto ainda em trânsito vence a leitura antiga
   state.sessions[code] = x
   emit()
@@ -234,25 +238,12 @@ export async function deleteSession(code) {
   emit()
   await sb.from('sessions').delete().eq('code', code)
 }
-export async function setStoryStatus(code, status) {
-  const x = state.sessions[code]; const s = x?.stories[x.current]; if (!s) return
-  mutate(code, (y) => { y.stories[y.current].status = status; if (y.status === 'draft') y.status = 'live' })
-  await sb.from('stories').update({ status }).eq('id', s.id)
-  await sb.from('sessions').update({ ...(x.status === 'draft' ? { status: 'live' } : {}), ...touch() }).eq('code', code)
+export async function openVoting(code) {
+  mutate(code, (y) => { y.status = 'live'; y.endedAt = null })
+  await sb.from('sessions').update({ status: 'live', ended_at: null, ...touch() }).eq('code', code)
   tick(code)
 }
-export async function nextStory(code) {
-  const x = state.sessions[code]; if (!x) return
-  if (x.current < x.stories.length - 1) {
-    mutate(code, (y) => { y.current++ })
-    await sb.from('sessions').update({ cur_index: x.current, ...touch() }).eq('code', code)
-  } else {
-    mutate(code, (y) => { y.status = 'ended'; y.endedAt = Date.now() })
-    await sb.from('sessions').update({ status: 'ended', ended_at: new Date().toISOString(), ...touch() }).eq('code', code)
-  }
-  tick(code)
-}
-export async function endSession(code) {
+export async function closeVoting(code) {
   mutate(code, (y) => { y.status = 'ended'; y.endedAt = Date.now() })
   await sb.from('sessions').update({ status: 'ended', ended_at: new Date().toISOString(), ...touch() }).eq('code', code)
   tick(code)

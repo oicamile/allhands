@@ -104,23 +104,13 @@ export const addJoke = (code) => commit((s) => {
 })
 export const deleteSession = (code) => commit((s) => { delete s.sessions[code] })
 
-export function setStoryStatus(code, status) {
-  upd(code, (x) => {
-    const st = x.stories[x.current]; if (!st) return
-    st.status = status
-    if (x.status === 'draft') x.status = 'live'
-  })
-}
-export const nextStory = (code) => upd(code, (x) => {
-  if (x.current < x.stories.length - 1) x.current++
-  else x.status = 'ended', x.endedAt = Date.now()
-})
-export const endSession = (code) => upd(code, (x) => { x.status = 'ended'; x.endedAt = Date.now() })
+// Votação da sessão inteira: o admin só abre e fecha.
+export const openVoting = (code) => upd(code, (x) => { x.status = 'live'; delete x.endedAt })
+export const closeVoting = (code) => upd(code, (x) => { x.status = 'ended'; x.endedAt = Date.now() })
 
 export function castVote(code, storyId, voter, grade, isAuthor) {
   upd(code, (x) => {
-    const st = x.stories.find((t) => t.id === storyId)
-    if (!st || st.status !== 'voting') return
+    if (x.status !== 'live' || !x.stories.some((t) => t.id === storyId)) return
     const v = x.votes.find((t) => t.storyId === storyId && t.voter === voter)
     if (v) Object.assign(v, { grade, isAuthor, ts: Date.now() })
     else x.votes.push({ id: uid(), storyId, voter, grade, isAuthor, ts: Date.now() })

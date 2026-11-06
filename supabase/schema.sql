@@ -116,36 +116,34 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ---------- funções do votante (anon) ----------
+-- A votação é da sessão inteira: o admin abre (status live) e fecha (status ended).
+-- O votante vê todas as pessoas de uma vez e vota em cada uma.
 create or replace function voter_state(p_code text, p_voter text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare s sessions; st stories; total int; my record; story jsonb := null; tally jsonb := null; mine jsonb := null;
+declare s sessions; lista jsonb := '[]'::jsonb; mine jsonb := '{}'::jsonb;
 begin
   select * into s from sessions where code = upper(p_code);
   if not found then return null; end if;
-  select count(*) into total from stories where session_code = s.code;
-  select * into st from stories where session_code = s.code order by position, id offset s.cur_index limit 1;
-  if found then
-    story := jsonb_build_object('id', st.id, 'status', st.status, 'index', s.cur_index, 'total', total);
-    if st.status <> 'waiting' then
-      story := story || jsonb_build_object('name', st.name, 'area', st.area, 'text', st.body);
-    end if;
-    select grade, is_author into my from votes where story_id = st.id and voter = p_voter;
-    if found then mine := jsonb_build_object('grade', my.grade, 'is_author', my.is_author); end if;
+  if s.status <> 'draft' then -- antes de abrir, nada de histórias (sem spoiler)
+    select coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'area', t.area, 'text', t.body) order by t.position, t.id), '[]'::jsonb)
+      into lista from stories t where t.session_code = s.code;
+    select coalesce(jsonb_object_agg(v.story_id::text, jsonb_build_object('grade', v.grade, 'is_author', v.is_author)), '{}'::jsonb)
+      into mine from votes v join stories t on t.id = v.story_id where t.session_code = s.code and v.voter = p_voter;
   end if;
   return jsonb_build_object(
     'status', s.status, 'weight', s.weight,
     'jokes', (select coalesce(jsonb_agg(j), '[]'::jsonb) from jsonb_array_elements(s.jokes) j where (j ->> 'active')::boolean),
-    'story', story, 'my_vote', mine); -- voto secreto: votante nunca recebe apuração
+    'stories', lista, 'my_votes', mine); -- voto secreto: o votante nunca recebe apuração
 end $$;
 
 create or replace function cast_vote(p_code text, p_story uuid, p_voter text, p_grade text, p_is_author boolean) returns void
 language plpgsql security definer set search_path = public as $$
-declare s sessions; cur uuid; st_status text;
+declare s sessions;
 begin
   select * into s from sessions where code = upper(p_code);
   if not found then raise exception 'sessao nao existe'; end if;
-  select id, status into cur, st_status from stories where session_code = s.code order by position, id offset s.cur_index limit 1;
-  if cur is distinct from p_story or st_status <> 'voting' then return; end if; -- votação fechada: ignora
+  if s.status <> 'live' then return; end if; -- votação ainda não aberta ou já fechada: ignora
+  if not exists (select 1 from stories where id = p_story and session_code = s.code) then return; end if;
   if p_grade !~ '^[1-5]$' and not exists (
     select 1 from jsonb_array_elements(s.jokes) j where j ->> 'id' = p_grade and (j ->> 'active')::boolean
   ) then raise exception 'nota invalida'; end if;
