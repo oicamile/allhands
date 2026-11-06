@@ -192,3 +192,20 @@ input[type="checkbox"] { min-height: 0; width: 22px; height: 22px; }
 /* a demo usa a tela real, responsiva: sem moldura de celular */
 .screen { width: 100%; max-width: 1000px; margin: 0 auto; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: #000; }
 .screen .app { min-height: 520px; }
+
+/* notas piada: sempre duas por linha na tela de voto */
+.voter .jgrid { grid-template-columns: 1fr 1fr; }
+/* pódio */
+.podio-wrap { margin: 1.25rem 0 2rem; }
+.podio { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; align-items: end; margin-bottom: 1rem; }
+.pcol { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+.pmedal { font-size: 2.4rem; line-height: 1; }
+.pname { font-weight: 600; margin-top: .35rem; overflow-wrap: anywhere; }
+.parea { color: var(--mute); font-size: .85rem; margin-bottom: .6rem; overflow-wrap: anywhere; }
+.pbloco { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; border: 1px solid var(--line); border-bottom: 0; border-radius: 22px 22px 0 0; background: rgba(255,255,255,.07); }
+.pbloco b { font-size: 2rem; color: var(--primary); font-weight: 600; line-height: 1.1; }
+.pbloco small { color: var(--mute); font-size: .75rem; }
+.p1 .pbloco { height: 190px; background: rgba(68,214,44,.18); border-color: var(--primary); }
+.p2 .pbloco { height: 140px; }
+.p3 .pbloco { height: 105px; }
+@media (min-width: 700px) { .pbloco b { font-size: 2.6rem; } .p1 .pbloco { height: 240px; } .p2 .pbloco { height: 180px; } .p3 .pbloco { height: 135px; } .pmedal { font-size: 3rem; } .pname { font-size: 1.15rem; } }

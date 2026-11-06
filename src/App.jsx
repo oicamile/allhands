@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import * as S from './store.js'
 import { HISTORIAS } from './historias.js'
+import { baixaPodio } from './podio.js'
 
 const LOGO = 'https://cdn.prod.website-files.com/6597493048b37364a6af5de6/65eb9366bb1d92351b49f349_logosite.svg'
 const fmt = (n) => (n == null ? '–' : n.toFixed(2).replace('.', ','))
@@ -244,6 +245,27 @@ function Result({ x, s }) {
   )
 }
 
+function Podio({ ranked, date, canExport }) {
+  const top = ranked.filter((r) => r.avg != null).slice(0, 3).map((r) => ({ name: r.st.name, area: r.st.area, avg: r.avg }))
+  if (top.length === 0) return null
+  const ordem = [1, 0, 2].filter((i) => top[i]) // 2º, 1º, 3º
+  return (
+    <section className="podio-wrap">
+      <div className="podio">
+        {ordem.map((i) => (
+          <div key={i} className={'pcol p' + (i + 1)}>
+            <div className="pmedal">{['🥇', '🥈', '🥉'][i]}</div>
+            <div className="pname">{top[i].name}</div>
+            <div className="parea">{top[i].area}</div>
+            <div className="pbloco"><b>{fmt(top[i].avg)}</b><small>média</small></div>
+          </div>
+        ))}
+      </div>
+      {canExport && <button className="btn pri" onClick={() => baixaPodio({ top, data: date })}>Baixar pódio (PNG)</button>}
+    </section>
+  )
+}
+
 function Ranking({ code, st }) {
   const x = st.sessions[code]
   useEffect(() => S.watchAdmin(code), [code, st.me])
@@ -253,6 +275,7 @@ function Ranking({ code, st }) {
     <AdminShell st={st} back={`/admin/${code}/live`}>
       <span className="tag">Ranking</span>
       <h1>Ranking da <b>sessão</b></h1>
+      <Podio ranked={ranked} date={x.date} canExport={S.roleOf(st) === 'admin'} />
       {ranked.map((r, i) => (
         <div key={r.st.id} className="card rank"><span className="n">{i + 1}</span><div><b>{r.st.name}</b><div className="muted">{r.st.area}</div></div><span className="num g" style={{ fontSize: '1.6rem' }}>{fmt(r.avg)}</span></div>
       ))}
