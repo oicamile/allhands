@@ -26,7 +26,7 @@ function Bar({ right }) {
 export default function App() {
   const r = useRoute()
   const st = S.useStore()
-  if (r[0] === 'demo') return <Demo />
+  if (r[0] && r[0].startsWith('demo')) return <Demo />
   if (r[0] === 'v') return <Voter code={(r[1] || '').toUpperCase()} st={st} />
   if (r[0] === 'admin') {
     if (!st.me) return <Login st={st} />
@@ -358,31 +358,69 @@ function VoterView({ code, x, s, me, mine, setMine, loading, cast }) {
   )
 }
 
-// Simulação da tela do votante (sem banco). Rota: #/demo
+// Simulação da tela do votante (sem banco). Rotas: #/demo (manual) e #/demo?auto (roda sozinha, com legendas)
+const DEMO_JOKES = [
+  { id: 'pesar', name: 'Nota de pesar', emoji: '🕯️', meaning: '', active: true },
+  { id: 'repudio', name: 'Nota de repúdio', emoji: '🚫', meaning: '', active: true },
+  { id: 'do', name: 'Nota dó', emoji: '🥺', meaning: '', active: true },
+  { id: 'ressarcimento', name: 'Nota de ressarcimento', emoji: '💸', meaning: '', active: true },
+]
+const DEMO_STORY = { id: 'd1', name: 'Ana Souza', area: 'Engenharia de Dados', text: 'Comi grilo frito num mercado em Bangkok e gostei tanto que voltei no dia seguinte pra comer de novo.' }
+const DEMO_STEPS = [
+  { ms: 9000, stage: 'waiting', caption: 'Você abre o link no celular. Enquanto a votação não abre, rolam histórias de All Hands passados.' },
+  { ms: 3500, stage: 'voting', caption: 'A pessoa nova conta a história na call. A votação abre e a tela muda sozinha.' },
+  { ms: 3500, stage: 'voting', vote: '4', caption: 'Um toque na nota, de 1 a 5. Dá pra trocar até fechar.' },
+  { ms: 3500, stage: 'voting', vote: 'do', caption: 'Ou uma nota piada, só pra zoar.' },
+  { ms: 4500, stage: 'closed', vote: 'do', caption: 'Votação fechada. O voto é secreto: ninguém vê o que você escolheu.' },
+  { ms: 5500, stage: 'result', caption: 'A apuração fica só com a equipe, que mostra a média ponderada na tela compartilhada.' },
+]
+const DEMO_VOTES = [['1', '5'], ['2', '4'], ['3', '4'], ['4', '5'], ['5', '3'], ['6', 'do'], ['7', '4'], ['8', 'pesar']].map(([v, g]) => ({ storyId: 'd1', voter: v, grade: g, isAuthor: false }))
+
 function Demo() {
-  const JOKES = [
-    { id: 'pesar', name: 'Nota de pesar', emoji: '🕯️', meaning: '', active: true },
-    { id: 'do', name: 'Nota dó', emoji: '🥺', meaning: '', active: true },
-    { id: 'repudio', name: 'Nota de repúdio', emoji: '🚫', meaning: '', active: true },
-    { id: 'ressarcimento', name: 'Nota de ressarcimento', emoji: '💸', meaning: '', active: true },
-  ]
-  const STAGES = { waiting: 'Sala de espera', voting: 'Votando', closed: 'Fechada', ended: 'Fim' }
-  const [stage, setStage] = useState('voting')
+  const auto = location.hash.includes('auto')
+  const STAGES = { waiting: 'Sala de espera', voting: 'Votando', closed: 'Fechada', result: 'Resultado (equipe)', ended: 'Fim' }
+  const [stage, setStage] = useState(auto ? DEMO_STEPS[0].stage : 'voting')
   const [votes, setVotes] = useState([])
   const [mine, setMine] = useState(false)
-  const story = { id: 'd1', name: 'Ana Souza', area: 'Engenharia de Dados', text: 'Comi grilo frito num mercado em Bangkok e gostei tanto que voltei no dia seguinte pra comer de novo.', status: stage === 'closed' ? 'closed' : stage === 'waiting' ? 'waiting' : 'voting' }
-  const x = { code: 'DEMO', status: stage === 'ended' ? 'ended' : 'live', weight: 0.5, jokes: JOKES, current: 0, stories: [story], votes }
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    if (!auto) return
+    let i = 0, t
+    const run = () => {
+      const st = DEMO_STEPS[i % DEMO_STEPS.length]
+      setStep(i % DEMO_STEPS.length); setStage(st.stage)
+      setVotes(st.vote ? [{ storyId: 'd1', voter: 'demo', grade: st.vote, isAuthor: false }] : [])
+      t = setTimeout(() => { i++; run() }, st.ms)
+    }
+    run()
+    return () => clearTimeout(t)
+  }, [auto])
+  const story = { ...DEMO_STORY, status: stage === 'closed' ? 'closed' : stage === 'waiting' ? 'waiting' : 'voting' }
+  const x = { code: 'DEMO', status: stage === 'ended' ? 'ended' : 'live', weight: 0.5, jokes: DEMO_JOKES, current: 0, stories: [story], votes }
   const cast = (_c, id, voter, grade, isAuthor) => setVotes([{ storyId: id, voter, grade, isAuthor }])
+  const resultX = { ...x, votes: DEMO_VOTES }
   return (
     <div className="app dark">
       <div className="wrap" style={{ maxWidth: 1000 }}>
-        <span className="tag">Simulação</span>
-        <h1 style={{ fontSize: '2rem' }}>Tela do <b>votante</b></h1>
-        <div className="row" style={{ marginBottom: '1rem' }}>
-          {Object.entries(STAGES).map(([k, v]) => <button key={k} className={'btn sm' + (stage === k ? ' pri' : '')} onClick={() => setStage(k)}>{v}</button>)}
-          <button className="btn sm" onClick={() => { setVotes([]); setMine(false) }}>Limpar voto</button>
+        {auto ? (
+          <div className="demo-cap">
+            <span className="tag">Como funciona a votação</span>
+            <p key={step}>{DEMO_STEPS[step].caption}</p>
+            <div className="demo-dots">{DEMO_STEPS.map((_, i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
+          </div>
+        ) : (<>
+          <span className="tag">Simulação</span>
+          <h1 style={{ fontSize: '2rem' }}>Tela do <b>votante</b></h1>
+          <div className="row" style={{ marginBottom: '1rem' }}>
+            {Object.entries(STAGES).map(([k, v]) => <button key={k} className={'btn sm' + (stage === k ? ' pri' : '')} onClick={() => setStage(k)}>{v}</button>)}
+            <button className="btn sm" onClick={() => { setVotes([]); setMine(false) }}>Limpar voto</button>
+          </div>
+        </>)}
+        <div className="phone">
+          {stage === 'result'
+            ? <div className="app dark"><Bar right={<span className="pill">equipe</span>} /><div className="wrap"><Result x={resultX} s={story} /></div></div>
+            : <VoterView code="DEMO" x={x} s={story} me={auto ? 'demo' : 'demo'} mine={mine} setMine={setMine} cast={cast} />}
         </div>
-        <div className="phone"><VoterView code="DEMO" x={x} s={story} me="demo" mine={mine} setMine={setMine} cast={cast} /></div>
       </div>
     </div>
   )
